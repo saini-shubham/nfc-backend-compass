@@ -55,15 +55,15 @@ router.post("/tagRegister", verifyToken, async (req, res) => {
 //     });
 // });
 
-// POST request to mark a tag scnned and store the details in "tagReports" collection
-router.post("/tags/:id", verifyToken, async (req, res) => {
+// GET request to mark a tag scnned and store the details in "tagReports" collection
+router.get("/tags/:id", verifyToken, async (req, res) => {
   const { userId, userType } = req.user;
   if (
     userType === "scanner" ||
     userType === "admin" ||
     userType === "superAdmin"
   ) {
-    const { scanned, userId, userType } = req.body;
+    //const { scanned, userId, userType } = req.body;
     try {
       // let { token } = req.headers;
       // token = jwt.verify(token, config.secret);
@@ -76,10 +76,20 @@ router.post("/tags/:id", verifyToken, async (req, res) => {
         res.status(404).json({ error: "Tag not found" });
         return;
       }
+	//asd
+	const currentDate = new Date();
 
+	const day = currentDate.getDate();
+	const month = currentDate.getMonth() + 1; // Month index starts from 0, so we add 1
+	const year = currentDate.getFullYear();
+
+	const formattedDate = `${day}/${month}/${year}`;
+
+//console.log(formattedDate);
+	//asd
       const isTaggedScanned = await TagReport.findOne({
         tagId: req.params.id,
-        date: new Date().toLocaleDateString(),
+        date: formattedDate  ,
         scanned: true,
       });
       if (isTaggedScanned !== null) {
@@ -87,44 +97,19 @@ router.post("/tags/:id", verifyToken, async (req, res) => {
           message: "Already Scanned Today",
         });
       }
-
+	const today = new Date();
       await TagReport.findOneAndUpdate(
-        { tagId: req.params.id, date: new Date().toLocaleDateString() },
+        { tagId: req.params.id, date: formattedDate  },
         //{ scanned: scanned, scannerId: userId }
-        { scanned: scanned,  userId }
+        { scanned: true,  userId, time:  today.getHours() + ":" + today.getMinutes() }
       );
       res.status(200).json({
         message: "Scanned Successfully",
       });
 
-      // if (
-      //   isTagScanned !== null &&
-      //   isTagScanned.scanned &&
-      //   isTagScanned.date === new Date().toLocaleDateString()
-      //   //isTagScanned.date.toString() === '14/5/2023'
-      // )
-      //   return res.status(200).json({ message: "Already Scanend" });
-      // var today = new Date();
-      // const presentDate = new Date().toLocaleDateString();
-      // const presentTime = today.getHours() + ":" + today.getMinutes();
-      // const report = {
-      //   //studentId: tag.id,
-      //   scannerId: userId,
-      //   tagId: tag.tagId,
-      //   name: tag.name,
-      //   houseNo: tag.houseNo,
-      //   locality: tag.locality,
-      //   city: tag.city,
-      //   scanned: scanned,
-      //   date: presentDate,
-      //   time: presentTime,
-      // };
-      // const tagReportCollection = new TagReport(report);
-      // await tagReportCollection.save();
-      // res.json(report);
     } catch (error) {
       console.error(error);
-      res.status(500).json({ error: "Internal server error" });
+      res.status(500).json({ error: "Internal server error >>" });
     }
   } else {
     return res.status(403).send("Unauthorised");
@@ -166,18 +151,18 @@ router.get("/tags/byCity", verifyToken, (req, res) => {
 
 //for visitor: to get the count of tag in the given city
 //router.get("/students/:city/present/count", (req, res) => {
-router.post("/tags/count/:city", verifyToken, (req, res) => {
+router.post("/tags/count", verifyToken, (req, res) => {
   const { userId, userType } = req.user;
   if (
     userType === "visitor" ||
     userType === "admin" ||
     userType === "superAdmin"
   ) {
-    const cityName = req.params.city;
-    const date = req.body;
+    const cityName = req.body.cityName;
+    const date = req.body.date;
     console.log(cityName, date.date);
     async function getDocumentCount(collectionName) {
-      const count = await collectionName.countDocuments();
+      const count = await collectionName.countDocuments({city:cityName});
       return count;
     }
 
@@ -185,6 +170,7 @@ router.post("/tags/count/:city", verifyToken, (req, res) => {
       const totalTags = count;
       TagReport.find({ city: cityName }) //find tags in the given city
         .then((tags) => {
+	console.log("!!",tags)
           // let { token } = req.headers;
           // token = jwt.verify(token, config.secret);
           if (tags.length === 0) {
@@ -195,18 +181,18 @@ router.post("/tags/count/:city", verifyToken, (req, res) => {
           ///const totalTags = Object.values(tags).filter((tag)=>tag.city ===cityName)
           //const scannedTags = Object.values(tags).filter((tag)=>tag.city ===cityName)
           const scannedTags = Object.values(tags).filter(
-            (tag) => tag.city === cityName && tag.date === date.date.toString()
+            (tag) => tag.city === cityName && tag.date === date && tag.scanned ===  true
           ).length;
-
+	console.log(">>",scannedTags)
           const notScanned = totalTags - scannedTags;
           res.status(200).json({ totalTags, scannedTags, notScanned });
         })
         .catch((error) => {
           console.error("Error finding tags:", error);
           res
-            .status(500)
-            //.json({ message: "An error occurred while finding the tags" });
-            .json(error);
+            .status(404)
+            .json({ message: "An error occurred while finding the tags",error });
+            //.json(error);
         });
     });
   } else {
@@ -253,16 +239,24 @@ router.post("/tags/count/:city", verifyToken, (req, res) => {
 router.post("/tagDetailsByCity", verifyToken, async (req, res) => {
   const { userId, userType } = req.user;
   const { date, city } = req.body;
+console.log(date,city)
   if (userType === "admin" || userType === "superAdmin") {
     const tagsByCity = await TagReport.find({ city });
+//console.log(tagsByCity)
     console.log(tagsByCity.length === 0);
     if (tagsByCity.length === 0) {
       return res
         .status(404)
         .json({ message: "No tags found for the given city" });
     }
-    const tagsByCityAndDate = await TagReport.find({ date });
-    if (tagsByCityAndDate.length === 0) {
+    const tagsByCityAndDate = await TagReport.find({ date,city });
+//	console.log("!!",tagsByCityAndDate)
+//const tagsByCityAndDate = tagsByCity.filter((item)=>{
+//	console.log(item.date,date,"!!")
+//	return item.date === date;
+//})
+//console.log("!!",tagsByCityAndDate)
+if (tagsByCityAndDate.length === 0) {
       return res
         .status(404)
         .json({ message: "No tags found for the given date" });

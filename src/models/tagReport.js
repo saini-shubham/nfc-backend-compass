@@ -3,13 +3,13 @@ const validator = require('validator')
 const TagReport = mongoose.model('TagReport',{
     name:{
         type:String,
-       // required:true,
+       required:true,
         trim:true
     },
     tagId:{
         type:String,
         required:true,
-        trim:true,
+       // trim:true,
         //unique:true  
 
     },
